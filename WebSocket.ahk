@@ -42,7 +42,7 @@
 	; Called by the JS in response to WS events
 	_Event(EventName, Event)
 	{
-		this["On" + EventName](Event)
+		this["On" EventName](Event)
 	}
 	
 	; Sends data through the WebSocket
