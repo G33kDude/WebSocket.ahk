@@ -12,7 +12,7 @@ class Example extends WebSocket
 	OnOpen(Event)
 	{
 		InputBox, Data, WebSocket, Enter some text to send through the websocket.
-		this.WebSock.Send(Data)
+		this.Send(Data)
 	}
 	
 	OnMessage(Event)
