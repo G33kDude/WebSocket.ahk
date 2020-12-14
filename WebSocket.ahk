@@ -1,6 +1,6 @@
 ﻿class WebSocket
 {
-	__New(WS_URL)
+	__New(WS_URL, WS_SUBPROTOCOLS)
 	{
 		static wb
 		
@@ -22,10 +22,11 @@
 		this.document.parentWindow.ahk_savews := this._SaveWS.Bind(this)
 		this.document.parentWindow.ahk_event := this._Event.Bind(this)
 		this.document.parentWindow.ahk_ws_url := WS_URL
+		this.document.parentWindow.ahk_ws_subprotocols := WS_SUBPROTOCOLS
 		
 		; Add some JavaScript to the page to open a socket
 		Script := this.document.createElement("script")
-		Script.text := "ws = new WebSocket(ahk_ws_url);`n"
+		Script.text := "ws = new WebSocket(ahk_ws_url, ahk_ws_subprotocols);`n"
 		. "ws.onopen = function(event){ ahk_event('Open', event); };`n"
 		. "ws.onclose = function(event){ ahk_event('Close', event); };`n"
 		. "ws.onerror = function(event){ ahk_event('Error', event); };`n"
