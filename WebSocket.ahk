@@ -4,6 +4,11 @@
 	{
 		static wb
 		
+		; Need IE10+
+		RegRead, OutputVar, HKLM, Software\Microsoft\Internet Explorer, svcVersion
+		if (StrSplit(OutputVar, ".")[1] < 10)
+			throw Exception("Need IE10+")
+		
 		; Create an IE instance
 		Gui, +hWndhOld
 		Gui, New, +hWndhWnd
