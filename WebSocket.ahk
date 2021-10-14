@@ -1,8 +1,13 @@
 ﻿class WebSocket
 {
-	__New(WS_URL)
+	__New(WS_URL, Timeout:=30)
 	{
 		static wb
+		
+		; Need IE10+
+		RegRead, OutputVar, HKLM, Software\Microsoft\Internet Explorer, svcVersion
+		if (StrSplit(OutputVar, ".")[1] < 10)
+			throw Exception("Connect to a WebSocket server need IE10+")
 		
 		; Create an IE instance
 		Gui, +hWndhOld
@@ -14,8 +19,14 @@
 		; Write an appropriate document
 		WB.Navigate("about:<!DOCTYPE html><meta http-equiv='X-UA-Compatible'"
 		. "content='IE=edge'><body></body>")
+		StartTime := A_TickCount
 		while (WB.ReadyState < 4)
-			sleep, 50
+		{
+			if (A_TickCount-StartTime > Timeout*1000)
+				throw Exception("Connect to a WebSocket server timeout")
+			else
+				Sleep, 50
+		}
 		this.document := WB.document
 		
 		; Add our handlers to the JavaScript namespace
@@ -24,6 +35,7 @@
 		this.document.parentWindow.ahk_ws_url := WS_URL
 		
 		; Add some JavaScript to the page to open a socket
+		; Here is the JS code, no need to add a timeout
 		Script := this.document.createElement("script")
 		Script.text := "ws = new WebSocket(ahk_ws_url);`n"
 		. "ws.onopen = function(event){ ahk_event('Open', event); };`n"
