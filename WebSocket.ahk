@@ -29,7 +29,15 @@
 		. "ws.onopen = function(event){ ahk_event('Open', event); };`n"
 		. "ws.onclose = function(event){ ahk_event('Close', event); };`n"
 		. "ws.onerror = function(event){ ahk_event('Error', event); };`n"
-		. "ws.onmessage = function(event){ ahk_event('Message', event); };"
+		. "ws.onmessage = function(event){ ahk_event('Message', event); };`n"
+		. "function ahk_reconnect() {`n"
+		. "  ws.close(1000, 'Reconnecting');`n"
+		. "  ws = new WebSocket(ahk_ws_url);`n"
+		. "  ws.onopen = function(event){ ahk_event('Open', event); };`n"
+		. "  ws.onclose = function(event){ ahk_event('Close', event); };`n"
+		. "  ws.onerror = function(event){ ahk_event('Error', event); };`n"
+		. "  ws.onmessage = function(event){ ahk_event('Message', event); };`n"
+		. "};"
 		this.document.body.appendChild(Script)
 	}
 	
@@ -49,6 +57,12 @@
 	Close(Code:=1000, Reason:="")
 	{
 		this.document.parentWindow.ws.close(Code, Reason)
+	}
+	
+	; Reconnects to the WebSocket
+	Reconnect()
+	{
+		this.document.parentWindow.ahk_reconnect()
 	}
 	
 	; Closes and deletes the WebSocket, removing
