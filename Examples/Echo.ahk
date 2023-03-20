@@ -3,7 +3,7 @@ SetBatchLines, -1
 
 #Include ../WebSocket.ahk
 
-new Example("wss://echo.websocket.org/")
+x := new Example("wss://ws.postman-echo.com/raw")
 return
 
 
