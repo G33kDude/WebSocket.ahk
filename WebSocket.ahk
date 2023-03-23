@@ -28,6 +28,10 @@ class WebSocket {
 	recData := ""
 	recDataSize := 0
 	
+	; Aborted connection Event
+	EVENT_ABORTED := { status: 1006 ; WEB_SOCKET_ABORTED_CLOSE_STATUS
+		, reason: "The connection was closed without sending or receiving a close frame." }
+
 	_LastError(Err := -1)
 	{
 		static module := DllCall("GetModuleHandle", "Str", "winhttp", "Ptr")
@@ -415,7 +419,7 @@ class WebSocket {
 		if (this.readyState == 3)
 			return
 		this.readyState := 3
-		try this._Event("Close", {status: 1006, reason: ""})
+		try this._Event("Close", this.EVENT_ABORTED)
 	}
 	
 	queryCloseStatus() {
@@ -430,7 +434,7 @@ class WebSocket {
 			, "UInt")) ; DWORD
 			return { status: usStatus, reason: StrGet(&vReason, len, "utf-8") }
 		else if (this.readyState > 1)
-			return { status: 1006, reason: "" }
+			return this.EVENT_ABORTED
 	}
 	
 	; eBufferType BINARY_MESSAGE = 0, BINARY_FRAGMENT = 1, UTF8_MESSAGE = 2, UTF8_FRAGMENT = 3
