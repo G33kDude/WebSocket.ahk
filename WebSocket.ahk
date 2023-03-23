@@ -28,6 +28,10 @@ class WebSocket {
 	recData := ""
 	recDataSize := 0
 	
+	; Aborted connection Event
+	EVENT_ABORTED := { status: 1006 ; WEB_SOCKET_ABORTED_CLOSE_STATUS
+		, reason: "The connection was closed without sending or receiving a close frame." }
+
 	_LastError(Err := -1)
 	{
 		static module := DllCall("GetModuleHandle", "Str", "winhttp", "Ptr")
@@ -111,11 +115,11 @@ class WebSocket {
 		; Force async to boolean
 		this.async := async := !!async
 		
-		; Iniitalize the Cache
+		; Initialize the Cache
 		ObjSetCapacity(this, "cache", this.cacheSize)
 		this.pCache := ObjGetAddress(this, "cache")
 		
-		; Iniitalize the RecData
+		; Initialize the RecData
 		; this.pRecData := ObjGetAddress(this, "recData")
 		
 		; Find the script's built-in window for message targeting
@@ -163,7 +167,7 @@ class WebSocket {
 		
 		; Set any event handlers from events parameter
 		for k, v in IsObject(events) ? events : []
-			if (k ~= "i)^(data|message|close)$")
+			if (k ~= "i)^(data|message|close|error|open)$")
 				this["on" k] := v
 		
 		; Set up a handler for messages from the StatusSyncCallback mcode
@@ -272,7 +276,7 @@ class WebSocket {
 		}
 		
 		; Fire the open event
-		this._Event("Open", {})
+		this._Event("Open", {timestamp:A_Now A_Msec, url: this.url})
 	}
 	
 	WEBSOCKET_STATUSCHANGE(wp, lp, msg, hwnd) {
@@ -302,7 +306,7 @@ class WebSocket {
 		{
 			closeStatus := this.QueryCloseStatus()
 			this.shutdown()
-			this.onClose(closeStatus.status, closeStatus.reason)
+			this._Event("Close", {reason: closeStatus.reason, status: closeStatus.status})
 			return
 		}
 
@@ -328,7 +332,7 @@ class WebSocket {
 					; Clear fragment buffer
 					this.recDataSize := 0
 					
-					this.onData(data, offset + dwBytesTransferred)
+					this._Event("Data", {data: &data, size: offset + dwBytesTransferred})
 				}
 				else ; No prior fragment
 				{
@@ -339,7 +343,7 @@ class WebSocket {
 					, "Ptr", this.pCache
 					, "UInt", dwBytesTransferred)
 					
-					this.onData(data, dwBytesTransferred)
+					this._Event("Data", {data: &data, size: dwBytesTransferred})
 				}
 			}
 			else if (eBufferType == 2) ; UTF8
@@ -383,6 +387,7 @@ class WebSocket {
 	
 	askForMoreData(hInternet)
 	{
+		static ERROR_INVALID_OPERATION := 4317
 		; Original implementation used a while loop here, but in my experience
 		; that causes lost messages
 		ret := DllCall("Winhttp\WinHttpWebSocketReceive"
@@ -392,7 +397,7 @@ class WebSocket {
 		, "UInt*", 0             ; [out] DWORD     *pdwBytesRead,
 		, "UInt*", 0             ; [out]           *peBufferType
 		, "UInt") ; DWORD
-		if (ret && ret != 4317) ; TODO: what is this constant?
+		if (ret && ret != ERROR_INVALID_OPERATION)
 			this._Error({code: ret})
 	}
 	
@@ -414,7 +419,7 @@ class WebSocket {
 		if (this.readyState == 3)
 			return
 		this.readyState := 3
-		try this._Event("Close", {status: 1006, reason: ""})
+		try this._Event("Close", this.EVENT_ABORTED)
 	}
 	
 	queryCloseStatus() {
@@ -429,7 +434,7 @@ class WebSocket {
 			, "UInt")) ; DWORD
 			return { status: usStatus, reason: StrGet(&vReason, len, "utf-8") }
 		else if (this.readyState > 1)
-			return { status: 1006, reason: "" }
+			return this.EVENT_ABORTED
 	}
 	
 	; eBufferType BINARY_MESSAGE = 0, BINARY_FRAGMENT = 1, UTF8_MESSAGE = 2, UTF8_FRAGMENT = 3
@@ -488,7 +493,7 @@ class WebSocket {
 				}
 				else
 				{
-					recSize := dwBytesRead
+					rec.size := dwBytesRead
 					ObjSetCapacity(rec, "data", rec.size)
 					ptr := ObjGetAddress(rec, "data")
 					DllCall("RtlMoveMemory", "Ptr", ptr, "Ptr", this.pCache, "UInt", dwBytesRead)
