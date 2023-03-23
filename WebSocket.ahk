@@ -120,7 +120,8 @@ class WebSocket {
 		this.pCache := ObjGetAddress(this, "cache")
 		
 		; Initialize the RecData
-		; this.pRecData := ObjGetAddress(this, "recData")
+		ObjSetCapacity(this, "recData", this.recDataSize)
+		this.pRecData := ObjGetAddress(this, "recData")
 		
 		; Find the script's built-in window for message targeting
 		dhw := A_DetectHiddenWindows
@@ -311,72 +312,35 @@ class WebSocket {
 		}
 
 		try {
-			if (eBufferType == 0) ; BINARY
-			{
-				if offset ; Continued from a fragment
-				{
-					VarSetCapacity(data, offset + dwBytesTransferred)
-					
-					; Copy data from the fragment buffer
-					DllCall("RtlMoveMemory"
-					, "Ptr", &data
-					, "Ptr", this.pRecData
-					, "UInt", this.recDataSize)
-					
-					; Copy data from the new data cache
-					DllCall("RtlMoveMemory"
-					, "Ptr", &data + offset
-					, "Ptr", this.pCache
-					, "UInt", dwBytesTransferred)
-					
-					; Clear fragment buffer
-					this.recDataSize := 0
-					
-					this._Event("Data", {data: &data, size: offset + dwBytesTransferred})
-				}
-				else ; No prior fragment
-				{
-					; Copy data from the new data cache
-					VarSetCapacity(data, dwBytesTransferred)
-					DllCall("RtlMoveMemory"
-					, "Ptr", &data
-					, "Ptr", this.pCache
-					, "UInt", dwBytesTransferred)
-					
-					this._Event("Data", {data: &data, size: dwBytesTransferred})
-				}
-			}
-			else if (eBufferType == 2) ; UTF8
-			{
-				if offset
-				{
-					; Continued from a fragment
-					this.recDataSize += dwBytesTransferred
-					ObjSetCapacity(this, "recData", this.recDataSize)
-					
-					DllCall("RtlMoveMemory"
-					, "Ptr", this.pRecData + offset
-					, "Ptr", this.pCache
-					, "UInt", dwBytesTransferred)
-					
-					msg := StrGet(this.pRecData, "utf-8")
-					this.recDataSize := 0
-				}
-				else ; No prior fragment
-					msg := StrGet(this.pCache, dwBytesTransferred, "utf-8")
-				
-				this._Event("Message", {data: msg})
-			}
-			else if (eBufferType == 1 || eBufferType == 3) ; BINARY_FRAGMENT, UTF8_FRAGMENT
-			{
-				; Add the fragment to the received data buffer
-				this.recDataSize += dwBytesTransferred
-				ObjSetCapacity(this, "recData", this.recDataSize)
+			this.recDataSize += dwBytesTransferred
+			VarSetCapacity(data, offset + dwBytesTransferred)
+			if (this.recData) {
+				; Copy data from the fragment buffer
 				DllCall("RtlMoveMemory"
+				, "Ptr", &data
+				, "Ptr", this.pRecData
+				, "UInt", this.recDataSize)
+			}
+			; Copy data from the new data cache
+			DllCall("RtlMoveMemory"
+			, "Ptr", &data + offset
+			, "Ptr", this.pCache
+			, "UInt", dwBytesTransferred)
+			; Handle BufferType
+			switch (eBufferType) {
+				case 0: ; BINARY
+				this._Event("Data", {data: &data, size: this.recDataSize})
+				case 2: ; UTF-8
+				this._Event("Message", {data: StrGet(&data, this.recDataSize, "utf-8")})
+				default: ; BINARY_FRAGMENT, UTF8_FRAGMENT
+				; Add the fragment to the received data buffer
+				return DllCall("RtlMoveMemory"
 				, "Ptr", this.pRecData + offset
 				, "Ptr", this.pCache
 				, "UInt", dwBytesTransferred)
 			}
+			; Clear fragment buffer
+			this.recDataSize := 0
 		}
 		finally
 		{
@@ -481,44 +445,19 @@ class WebSocket {
 			, "UInt*", eBufferType := 0 ; [out] WINHTTP_WEB_SOCKET_BUFFER_TYPE *peBufferType
 			, "UInt")) ; DWORD
 		{
+			rec.size += dwBytesRead
+			ObjSetCapacity(rec, "data", rec.size)
+			ptr := ObjGetAddress(rec, "data")
+			DllCall("RtlMoveMemory", "Ptr", ptr + offset, "Ptr", this.pCache, "UInt", dwBytesRead)
 			switch eBufferType
 			{
-				case 0:
-				if offset
-				{
-					rec.size += dwBytesRead
-					ObjSetCapacity(rec, "data", rec.size)
-					ptr := ObjGetAddress(rec, "data")
-					DllCall("RtlMoveMemory", "Ptr", ptr + offset, "Ptr", this.pCache, "UInt", dwBytesRead)
-				}
-				else
-				{
-					rec.size := dwBytesRead
-					ObjSetCapacity(rec, "data", rec.size)
-					ptr := ObjGetAddress(rec, "data")
-					DllCall("RtlMoveMemory", "Ptr", ptr, "Ptr", this.pCache, "UInt", dwBytesRead)
-				}
-				return rec
-				case 1, 3:
-				rec.size += dwBytesRead
-				ObjSetCapacity(rec, "data", rec.size)
-				ptr := ObjGetAddress(rec, "data")
-				DllCall("RtlMoveMemory", "Ptr", rec + offset, "Ptr", this.pCache, "UInt", dwBytesRead)
-				offset += dwBytesRead
-				case 2:
-				if (offset) {
-					rec.size += dwBytesRead
-					ObjSetCapacity(rec, "data", rec.size)
-					ptr := ObjGetAddress(rec, "data")
-					DllCall("RtlMoveMemory", "Ptr", ptr + offset, "Ptr", this.pCache, "UInt", dwBytesRead)
-					return StrGet(ptr, "utf-8")
-				}
-				return StrGet(this.pCache, dwBytesRead, "utf-8")
-				default:
-				rea := this.queryCloseStatus()
-				this.shutdown()
-				try this._Event("Close", {status: rea.status, reason: rea.reason})
-					return
+			case 0: return rec
+			case 2: return StrGet(this.pCache, rec.size, "utf-8")
+			default:
+			rea := this.queryCloseStatus()
+			this.shutdown()
+			try this._Event("Close", {status: rea.status, reason: rea.reason})
+				return
 			}
 		}
 		if (ret != 4317)
