@@ -111,11 +111,11 @@ class WebSocket {
 		; Force async to boolean
 		this.async := async := !!async
 		
-		; Iniitalize the Cache
+		; Initialize the Cache
 		ObjSetCapacity(this, "cache", this.cacheSize)
 		this.pCache := ObjGetAddress(this, "cache")
 		
-		; Iniitalize the RecData
+		; Initialize the RecData
 		; this.pRecData := ObjGetAddress(this, "recData")
 		
 		; Find the script's built-in window for message targeting
@@ -383,6 +383,7 @@ class WebSocket {
 	
 	askForMoreData(hInternet)
 	{
+		static ERROR_INVALID_OPERATION := 4317
 		; Original implementation used a while loop here, but in my experience
 		; that causes lost messages
 		ret := DllCall("Winhttp\WinHttpWebSocketReceive"
@@ -392,7 +393,7 @@ class WebSocket {
 		, "UInt*", 0             ; [out] DWORD     *pdwBytesRead,
 		, "UInt*", 0             ; [out]           *peBufferType
 		, "UInt") ; DWORD
-		if (ret && ret != 4317) ; TODO: what is this constant?
+		if (ret && ret != ERROR_INVALID_OPERATION)
 			this._Error({code: ret})
 	}
 	
