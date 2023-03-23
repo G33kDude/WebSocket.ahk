@@ -167,7 +167,7 @@ class WebSocket {
 		
 		; Set any event handlers from events parameter
 		for k, v in IsObject(events) ? events : []
-			if (k ~= "i)^(data|message|close)$")
+			if (k ~= "i)^(data|message|close|error|open)$")
 				this["on" k] := v
 		
 		; Set up a handler for messages from the StatusSyncCallback mcode
@@ -276,7 +276,7 @@ class WebSocket {
 		}
 		
 		; Fire the open event
-		this._Event("Open", {})
+		this._Event("Open", {timestamp:A_Now A_Msec, url: this.url})
 	}
 	
 	WEBSOCKET_STATUSCHANGE(wp, lp, msg, hwnd) {
@@ -306,7 +306,7 @@ class WebSocket {
 		{
 			closeStatus := this.QueryCloseStatus()
 			this.shutdown()
-			this.onClose(closeStatus.status, closeStatus.reason)
+			this._Event("Close", {reason: closeStatus.reason, status: closeStatus.status})
 			return
 		}
 
@@ -332,7 +332,7 @@ class WebSocket {
 					; Clear fragment buffer
 					this.recDataSize := 0
 					
-					this.onData(data, offset + dwBytesTransferred)
+					this._Event("Data", {data: &data, size: offset + dwBytesTransferred})
 				}
 				else ; No prior fragment
 				{
@@ -343,7 +343,7 @@ class WebSocket {
 					, "Ptr", this.pCache
 					, "UInt", dwBytesTransferred)
 					
-					this.onData(data, dwBytesTransferred)
+					this._Event("Data", {data: &data, size: dwBytesTransferred})
 				}
 			}
 			else if (eBufferType == 2) ; UTF8
@@ -493,7 +493,7 @@ class WebSocket {
 				}
 				else
 				{
-					recSize := dwBytesRead
+					rec.size := dwBytesRead
 					ObjSetCapacity(rec, "data", rec.size)
 					ptr := ObjGetAddress(rec, "data")
 					DllCall("RtlMoveMemory", "Ptr", ptr, "Ptr", this.pCache, "UInt", dwBytesRead)
